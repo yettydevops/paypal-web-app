@@ -1,0 +1,41 @@
+node{
+  def mavenHome = tool name: 'maven3.8.4'
+  stage('1Clone'){
+    git branch: 'feature', credentialsId: 'GITHUB-CREDENTIALS', url: 'https://github.com/yettydevops/paypal-web-app'
+  }
+  stage('2MavenBuild'){
+    sh "${mavenHome}/bin/mvn clean package"
+   // bat 'mvn package'
+  }
+  stage('3CodeQuality'){
+    sh "${mavenHome}/bin/mvn sonar:sonar"
+  }
+stage('4UploadArtifacts'){
+    sh "${mavenHome}/bin/mvn deploy"
+  }
+  stage('5.Deploy2Tomcat'){
+      deploy adapters: [tomcat9(credentialsId: 'tomcat-credentials2', path: '', url: 'http://54.234.173.17:7000/')], contextPath: null, war: 'target/web-app.war'
+  }
+  stage('6.Deploy2uat'){
+        //sshagent(['Agent1Credentials']) {
+  "scp target/*.war ec2-user@172.31.25.14:/opt/tomcat9/webapps/uat.war"  
+//}  
+} 
+stage('7.approval'){
+      timeout(time:8, unit:'HOURS'){
+        input message: 'Please approve deployment to Production'
+      }
+     }
+     stage('8.Deploy2prod'){
+        //sshagent(['Agent1Credentials']) {
+        "scp -o StrictHostKeyChecking=no target/*.war ec2-user@172.31.89.218:/opt/tomcat9/webapps/app.war" 
+//} 
+}
+stage('9.EmailAlerts'){
+    emailext body: '''Hi
+Build Status for boa app project.
+
+Regards
+Yetty Devops''', recipientProviders: [developers(), requestor()], subject: 'Project status', to: 'yettysarumi28@gmail.com'
+   }
+}
